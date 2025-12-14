@@ -1,0 +1,68 @@
+[project]
+name = "everybody-codes"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "dsnjturtle",email = "sebastian.t.kirchner@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "everybody-codes-data (>=0.5,<0.6)",
+    "pandas (>=2.3.3,<3.0.0)",
+    "pandas-stubs (>=2.3.3.251201,<3.0.0.0)",
+    "scipy (>=1.16.3,<2.0.0)",
+    "networkx (>=3.6.1,<4.0.0)",
+    "sympy (>=1.14.0,<2.0.0)",
+    "shapely (>=2.1.2,<3.0.0)"
+]
+
+[dependency-groups]
+dev = [
+    "pytest (>8.1.0)",
+    "pre-commit (>=3.6.0)",
+    "commitizen (>=3.12.0)",
+    "ruff (>=0.3.0)",
+    "pytype (>=2024.2.27)"
+]
+
+[tool.poetry]
+packages = [{include = "everybody_codes", from = "src"}]
+
+[tool.pytype]
+inputs = ['everybody_codes']
+jobs = 'auto'
+
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+preview = true
+
+[tool.ruff.lint]
+select = ["E3", "E4", "E7", "E9", "F", "D"]
+extend-select = ["B", "A", "SIM", "I", "D204", "D209", "D213", "D410", "D413", "W293", "W505", "PD", "NPY"]
+extend-ignore = ["D212", "D100", "D102", "D103", "D104", "D105", "D107", "PD008", "PD901", "PD010", "PD101"]
+extend-fixable = ["D", "W505", "W293"]
+preview = true
+
+[tool.ruff.format]
+preview = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "$version"
+version_scheme = "pep440"
+version_provider = "poetry"
+update_changelog_on_bump = true
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
+log_cli = true
+log_cli_level = "INFO"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
