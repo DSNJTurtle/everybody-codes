@@ -7,68 +7,118 @@ logger = logging.getLogger("everybody_codes")
 
 
 def part1(input_string: str) -> str:
-    # input_string = """ABabACacBCbca"""
+    names, rule_str = input_string.split("\n\n")
+    names = names.split(",")
 
-    n_match = 0
-    for i, s in enumerate(input_string):
-        if s == "A":
-            for j in range(i + 1, len(input_string)):
-                if input_string[j] == "a":
-                    n_match += 1
-    return str(n_match)
+    rules = {}
+    for r in rule_str.splitlines():
+        lhs, rhs = r.split(">")
+        lhs = lhs.strip()
+        rhs = rhs.strip().split(",")
+        rules[lhs] = rhs
+
+    for name in names:
+        valid = True
+        for i in range(1, len(name)):
+            s1 = name[i - 1]
+            s2 = name[i]
+            if (r1 := rules.get(s1)) is None:
+                valid = False
+                break
+            else:
+                if s2 not in r1:
+                    valid = False
+                    break
+
+        if valid:
+            return name
+
+    return ""
 
 
 def part2(input_string: str) -> str:
-    # input_string = """ABabACacBCbca"""
+    names, rule_str = input_string.split("\n\n")
+    names = names.split(",")
 
-    matches = {}
-    for i, s in enumerate(input_string):
-        if s.isupper():
-            for j in range(i + 1, len(input_string)):
-                if input_string[j] == s.lower():
-                    matches[s] = matches.get(s, 0) + 1
+    rules = {}
+    for r in rule_str.splitlines():
+        lhs, rhs = r.split(">")
+        lhs = lhs.strip()
+        rhs = rhs.strip().split(",")
+        rules[lhs] = rhs
 
-    return str(sum(matches.values()))
+    valid_names = 0
+    for idx, name in enumerate(names):
+        valid = True
+        for i in range(1, len(name)):
+            s1 = name[i - 1]
+            s2 = name[i]
+            if (r1 := rules.get(s1)) is None:
+                valid = False
+                break
+            else:
+                if s2 not in r1:
+                    valid = False
+                    break
+
+        if valid:
+            valid_names += idx + 1
+
+    return str(valid_names)
+
+
+def is_valid_name(name: str, rules: dict) -> bool:
+    for i in range(1, len(name)):
+        s1 = name[i - 1]
+        s2 = name[i]
+        if (r1 := rules.get(s1)) is None:
+            return False
+        else:
+            if s2 not in r1:
+                return False
+
+    return True
 
 
 def part3(input_string: str) -> str:
-    # input_string = """AABCBABCABCabcabcABCCBAACBCa"""
-    ll = len(input_string)
-    repeat = 1000
-    offset = 1000
-    mm = repeat * ll
+    names, rule_str = input_string.split("\n\n")
 
-    def _is(pos: int) -> str:
-        return input_string[pos % ll]
+    rules = {}
+    for r in rule_str.splitlines():
+        lhs, rhs = r.split(">")
+        lhs = lhs.strip()
+        rhs = rhs.strip().split(",")
+        rules[lhs] = rhs
 
     @functools.cache
-    def get_count(pos: int) -> int:
-        n_matches = 0
-        s = _is(pos)
-        if s.islower():
-            for j in range(pos - offset, pos + offset + 1):
-                if _is(j) == s.upper():
-                    n_matches += 1
-        return n_matches
+    def get_suffixes(s: str, remaining_length: int) -> list[str]:
+        if remaining_length == 0:
+            return [""]
 
-    n_matches = 0
-    for i in range(mm + 1):
-        if offset < i < mm - offset:
-            n_matches += get_count(i % ll)
-        else:
-            s = _is(i)
-            if s.islower():
-                imin = max(0, i - offset)
-                imax = min(i + offset + 1, mm)
-                for j in range(imin, imax):
-                    if _is(j) == s.upper():
-                        n_matches += 1
+        suffixes = []
+        for r in rules[s]:
+            for suffix in get_suffixes(r, remaining_length - 1):
+                extended_suffix = r + suffix
+                suffixes.append(extended_suffix)
 
-    return str(n_matches)
+        return suffixes
+
+    names = [x for x in names.split(",") if is_valid_name(x, rules)]
+    finished_names = set()
+    for name in names:
+        suffixes = get_suffixes(name[-1], 11 - len(name))
+        for s in suffixes:
+            nn = name + s
+            assert len(nn) == 11, "all names should have exactly 11 chars now"
+            for i in range(7, len(nn) + 1):
+                # add all valid names with at least 7 and up to 11 chars
+                finished_names.add(nn[:i])
+
+    return str(len(finished_names))
 
 
 if __name__ == "__main__":
-    quest = 6
+    quest = 7
     event = 2025
     p = 3
     data = get_inputs(quest=quest, event=event)
