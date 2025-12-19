@@ -1,7 +1,6 @@
 import logging
 
 import numpy as np
-import shapely
 from ecd import get_inputs, submit
 
 logger = logging.getLogger("everybody_codes")
@@ -12,12 +11,11 @@ def part1(input_string: str) -> str:
     data = np.array([int(x) for x in input_string.split(",")], dtype=int) - 1  # remove 1 counting offset
 
     n_nails = 32
-    step = 2 * np.pi / n_nails
-    circle_positions = np.array([i * step for i in range(n_nails)])
+    n_half = n_nails // 2
 
     n_crosses = 0
     for a, b in zip(data, data[1:], strict=False):
-        if np.abs(np.abs(circle_positions[b] - circle_positions[a]) - np.pi) < (np.pi / 180 * 2):
+        if (a + n_half == b) or (b + n_half == a):
             n_crosses += 1
 
     return str(n_crosses)
@@ -28,27 +26,19 @@ def part2(input_string: str) -> str:
     data = np.array([int(x) for x in input_string.split(",")], dtype=int) - 1  # remove 1 counting offset
 
     n_nails = 256
-    step = 2 * np.pi / n_nails
-    angles = np.array([np.pi / 2 - i * step for i in range(n_nails)])
-    points = np.exp(1j * angles)
-
-    previous_lines = []
+    threads = []
     n_knots = 0
     for a, b in zip(data, data[1:], strict=False):
-        pa = points[a]
-        pb = points[b]
-        ls = shapely.geometry.LineString([[pa.real, pa.imag], [pb.real, pb.imag]])
+        for t in threads:
+            m1, m2 = min(t), max(t)
+            m1, m2 = m1 - m1, m2 - m1
+            n1, n2 = (a - m1) % n_nails, (b - m1) % n_nails
+            n1, n2 = min(n1, n2), max(n1, n2)
 
-        for pl in previous_lines:
-            if ls.crosses(pl):
-                # make sure that the intersection does not occur on the circle
-                x = list(shapely.intersection(ls, pl).coords)[0]
-                x = x[1] + 1j * x[0]
-                xp = np.abs(points - x) < 1e-3
-                if not xp.any():
-                    n_knots += 1
+            if m1 < n1 < m2 and n2 > m2:
+                n_knots += 1
 
-        previous_lines.append(ls)
+        threads.append((a, b))
 
     return str(n_knots)
 
@@ -58,40 +48,27 @@ def part3(input_string: str) -> str:
     data = np.array([int(x) for x in input_string.split(",")], dtype=int) - 1  # remove 1 counting offset
 
     n_nails = 256
-    step = 2 * np.pi / n_nails
-    angles = np.array([np.pi / 2 - i * step for i in range(n_nails)])
-    points = np.exp(1j * angles)
-
-    previous_lines = []
+    state = {}
     for a, b in zip(data, data[1:], strict=False):
-        pa = points[a]
-        pb = points[b]
-        ls = shapely.geometry.LineString([[pa.real, pa.imag], [pb.real, pb.imag]])
-        previous_lines.append(ls)
+        state[a] = state.get(a, []) + [b]
+        state[b] = state.get(b, []) + [a]
 
-    cuts = []
-    for a in range(n_nails - 1):
-        for b in range(a + 1, n_nails):
-            pa = points[a]
-            pb = points[b]
-            ls = shapely.geometry.LineString([[pa.real, pa.imag], [pb.real, pb.imag]])
+    n_cuts = -1
+    for c1 in range(n_nails - 1):
+        for c2 in range(c1 + 1, n_nails):
+            _c = 0
+            for start in range(c1 + 1, c2):
+                for end in state.get(start, []):
+                    if end < c1 or end > c2:
+                        _c += 1
 
-            n_threads = 0
-            for pl in previous_lines:
-                if ls.crosses(pl):
-                    # make sure that the intersection does not occur on the circle
-                    x = list(shapely.intersection(ls, pl).coords)[0]
-                    x = x[1] + 1j * x[0]
-                    xp = np.abs(points - x) < 1e-3
-                    if not xp.any():
-                        n_threads += 1
-                elif pl.buffer(1e-2).contains(ls):
-                    n_threads += 1
+            if c2 in state.get(c1, []):
+                # check if same thread is cutted
+                _c += 1
 
-            cuts.append((a, b, n_threads))
+            n_cuts = max(n_cuts, _c)
 
-    m = max([x[2] for x in cuts])
-    return str(m)
+    return str(n_cuts)
 
 
 if __name__ == "__main__":
