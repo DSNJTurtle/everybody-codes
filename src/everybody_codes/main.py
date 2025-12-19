@@ -1,124 +1,101 @@
-import functools
 import logging
 
+import numpy as np
+import shapely
 from ecd import get_inputs, submit
 
 logger = logging.getLogger("everybody_codes")
 
 
 def part1(input_string: str) -> str:
-    names, rule_str = input_string.split("\n\n")
-    names = names.split(",")
+    # input_string = """1,5,2,6,8,4,1,7,3"""
+    data = np.array([int(x) for x in input_string.split(",")], dtype=int) - 1  # remove 1 counting offset
 
-    rules = {}
-    for r in rule_str.splitlines():
-        lhs, rhs = r.split(">")
-        lhs = lhs.strip()
-        rhs = rhs.strip().split(",")
-        rules[lhs] = rhs
+    n_nails = 32
+    step = 2 * np.pi / n_nails
+    circle_positions = np.array([i * step for i in range(n_nails)])
 
-    for name in names:
-        valid = True
-        for i in range(1, len(name)):
-            s1 = name[i - 1]
-            s2 = name[i]
-            if (r1 := rules.get(s1)) is None:
-                valid = False
-                break
-            else:
-                if s2 not in r1:
-                    valid = False
-                    break
+    n_crosses = 0
+    for a, b in zip(data, data[1:], strict=False):
+        if np.abs(np.abs(circle_positions[b] - circle_positions[a]) - np.pi) < (np.pi / 180 * 2):
+            n_crosses += 1
 
-        if valid:
-            return name
-
-    return ""
+    return str(n_crosses)
 
 
 def part2(input_string: str) -> str:
-    names, rule_str = input_string.split("\n\n")
-    names = names.split(",")
+    # input_string = "1,5,2,6,8,4,1,7,3,5,7,8,2"
+    data = np.array([int(x) for x in input_string.split(",")], dtype=int) - 1  # remove 1 counting offset
 
-    rules = {}
-    for r in rule_str.splitlines():
-        lhs, rhs = r.split(">")
-        lhs = lhs.strip()
-        rhs = rhs.strip().split(",")
-        rules[lhs] = rhs
+    n_nails = 256
+    step = 2 * np.pi / n_nails
+    angles = np.array([np.pi / 2 - i * step for i in range(n_nails)])
+    points = np.exp(1j * angles)
 
-    valid_names = 0
-    for idx, name in enumerate(names):
-        valid = True
-        for i in range(1, len(name)):
-            s1 = name[i - 1]
-            s2 = name[i]
-            if (r1 := rules.get(s1)) is None:
-                valid = False
-                break
-            else:
-                if s2 not in r1:
-                    valid = False
-                    break
+    previous_lines = []
+    n_knots = 0
+    for a, b in zip(data, data[1:], strict=False):
+        pa = points[a]
+        pb = points[b]
+        ls = shapely.geometry.LineString([[pa.real, pa.imag], [pb.real, pb.imag]])
 
-        if valid:
-            valid_names += idx + 1
+        for pl in previous_lines:
+            if ls.crosses(pl):
+                # make sure that the intersection does not occur on the circle
+                x = list(shapely.intersection(ls, pl).coords)[0]
+                x = x[1] + 1j * x[0]
+                xp = np.abs(points - x) < 1e-3
+                if not xp.any():
+                    n_knots += 1
 
-    return str(valid_names)
+        previous_lines.append(ls)
 
-
-def is_valid_name(name: str, rules: dict) -> bool:
-    for i in range(1, len(name)):
-        s1 = name[i - 1]
-        s2 = name[i]
-        if (r1 := rules.get(s1)) is None:
-            return False
-        else:
-            if s2 not in r1:
-                return False
-
-    return True
+    return str(n_knots)
 
 
 def part3(input_string: str) -> str:
-    names, rule_str = input_string.split("\n\n")
+    # input_string = "1,5,2,6,8,4,1,7,3,6"
+    data = np.array([int(x) for x in input_string.split(",")], dtype=int) - 1  # remove 1 counting offset
 
-    rules = {}
-    for r in rule_str.splitlines():
-        lhs, rhs = r.split(">")
-        lhs = lhs.strip()
-        rhs = rhs.strip().split(",")
-        rules[lhs] = rhs
+    n_nails = 256
+    step = 2 * np.pi / n_nails
+    angles = np.array([np.pi / 2 - i * step for i in range(n_nails)])
+    points = np.exp(1j * angles)
 
-    @functools.cache
-    def get_suffixes(s: str, remaining_length: int) -> list[str]:
-        if remaining_length == 0:
-            return [""]
+    previous_lines = []
+    for a, b in zip(data, data[1:], strict=False):
+        pa = points[a]
+        pb = points[b]
+        ls = shapely.geometry.LineString([[pa.real, pa.imag], [pb.real, pb.imag]])
+        previous_lines.append(ls)
 
-        suffixes = []
-        for r in rules[s]:
-            for suffix in get_suffixes(r, remaining_length - 1):
-                extended_suffix = r + suffix
-                suffixes.append(extended_suffix)
+    cuts = []
+    for a in range(n_nails - 1):
+        for b in range(a + 1, n_nails):
+            pa = points[a]
+            pb = points[b]
+            ls = shapely.geometry.LineString([[pa.real, pa.imag], [pb.real, pb.imag]])
 
-        return suffixes
+            n_threads = 0
+            for pl in previous_lines:
+                if ls.crosses(pl):
+                    # make sure that the intersection does not occur on the circle
+                    x = list(shapely.intersection(ls, pl).coords)[0]
+                    x = x[1] + 1j * x[0]
+                    xp = np.abs(points - x) < 1e-3
+                    if not xp.any():
+                        n_threads += 1
+                elif pl.buffer(1e-2).contains(ls):
+                    n_threads += 1
 
-    names = [x for x in names.split(",") if is_valid_name(x, rules)]
-    finished_names = set()
-    for name in names:
-        suffixes = get_suffixes(name[-1], 11 - len(name))
-        for s in suffixes:
-            nn = name + s
-            assert len(nn) == 11, "all names should have exactly 11 chars now"
-            for i in range(7, len(nn) + 1):
-                # add all valid names with at least 7 and up to 11 chars
-                finished_names.add(nn[:i])
+            cuts.append((a, b, n_threads))
 
-    return str(len(finished_names))
+    m = max([x[2] for x in cuts])
+    return str(m)
 
 
 if __name__ == "__main__":
-    quest = 7
+    quest = 8
     event = 2025
     p = 3
     data = get_inputs(quest=quest, event=event)
