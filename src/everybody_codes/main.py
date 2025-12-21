@@ -1,78 +1,143 @@
 import logging
+from dataclasses import dataclass, field
 
-import numpy as np
 from ecd import get_inputs, submit
 
 logger = logging.getLogger("everybody_codes")
 
 
+def hamming_distance(c: str, p1: str, p2: str) -> tuple[int, int]:
+    if len(c) != len(p2) or len(c) != len(p2):
+        return -1, -1
+
+    n_matches_p1 = 0
+    n_matches_p2 = 0
+    for i in range(len(c)):
+        if not (c[i] == p1[i] or c[i] == p2[i]):
+            return -1, -1
+
+        if c[i] == p1[i]:
+            n_matches_p1 += 1
+        if c[i] == p2[i]:
+            n_matches_p2 += 1
+
+    return n_matches_p1, n_matches_p2
+
+
 def part1(input_string: str) -> str:
-    # input_string = """1,5,2,6,8,4,1,7,3"""
-    data = np.array([int(x) for x in input_string.split(",")], dtype=int) - 1  # remove 1 counting offset
+    data = {}
+    for x in input_string.splitlines():
+        n, seq = x.split(":", 1)
+        data[n] = seq
 
-    n_nails = 32
-    n_half = n_nails // 2
+    for ck in data:
+        parent_keys = [x for x in data if x != ck]
+        assert len(parent_keys) == 2
+        c = data[ck]
+        p1 = data[parent_keys[0]]
+        p2 = data[parent_keys[1]]
 
-    n_crosses = 0
-    for a, b in zip(data, data[1:], strict=False):
-        if (a + n_half == b) or (b + n_half == a):
-            n_crosses += 1
+        n1, n2 = hamming_distance(c, p1, p2)
+        if n1 != -1 and n2 != -1:
+            return str(n1 * n2)
 
-    return str(n_crosses)
+    return ""
 
 
 def part2(input_string: str) -> str:
-    # input_string = "1,5,2,6,8,4,1,7,3,5,7,8,2"
-    data = np.array([int(x) for x in input_string.split(",")], dtype=int) - 1  # remove 1 counting offset
+    data = {}
+    for x in input_string.splitlines():
+        n, seq = x.split(":", 1)
+        data[n] = seq
 
-    n_nails = 256
-    threads = []
-    n_knots = 0
-    for a, b in zip(data, data[1:], strict=False):
-        for t in threads:
-            m1, m2 = min(t), max(t)
-            m1, m2 = m1 - m1, m2 - m1
-            n1, n2 = (a - m1) % n_nails, (b - m1) % n_nails
-            n1, n2 = min(n1, n2), max(n1, n2)
+    keys = list(data.keys())
+    results = []
+    for i, ck in enumerate(keys):
+        for j, p1k in enumerate(keys):
+            if i == j:
+                continue
+            for k in range(j + 1, len(keys)):
+                p2k = keys[k]
+                if ck == p2k:
+                    continue
 
-            if m1 < n1 < m2 and n2 > m2:
-                n_knots += 1
+                c = data[ck]
+                p1 = data[p1k]
+                p2 = data[p2k]
 
-        threads.append((a, b))
+                n1, n2 = hamming_distance(c, p1, p2)
+                if n1 != -1 and n2 != -1:
+                    results.append(n1 * n2)
 
-    return str(n_knots)
+    return str(sum(results))
+
+
+@dataclass
+class Duck:
+    """Duck."""
+
+    scale_number: int
+    dna: str
+    parents: list["Duck"] = field(default_factory=list)
+    children: list["Duck"] = field(default_factory=list)
+
+    def build_tree(self, ids: set[int] | None = None) -> set[int]:
+        ids = ids or set()
+
+        if self.scale_number in ids:
+            return ids
+
+        ids.add(self.scale_number)
+        for p in self.parents:
+            for i in p.build_tree(ids=ids):
+                ids.add(i)
+
+        for child in self.children:
+            for i in child.build_tree(ids=ids):
+                ids.add(i)
+
+        return ids
 
 
 def part3(input_string: str) -> str:
-    # input_string = "1,5,2,6,8,4,1,7,3,6"
-    data = np.array([int(x) for x in input_string.split(",")], dtype=int) - 1  # remove 1 counting offset
+    ducks: dict[int, Duck] = {}
+    for x in input_string.splitlines():
+        n, seq = x.split(":", 1)
+        ducks[int(n)] = Duck(int(n), seq)
 
-    n_nails = 256
-    state = {}
-    for a, b in zip(data, data[1:], strict=False):
-        state[a] = state.get(a, []) + [b]
-        state[b] = state.get(b, []) + [a]
+    keys = list(ducks.keys())
+    for i, ck in enumerate(keys):
+        for j, p1k in enumerate(keys):
+            if i == j:
+                continue
+            for k in range(j + 1, len(keys)):
+                p2k = keys[k]
+                if ck == p2k:
+                    continue
 
-    n_cuts = -1
-    for c1 in range(n_nails - 1):
-        for c2 in range(c1 + 1, n_nails):
-            _c = 0
-            for start in range(c1 + 1, c2):
-                for end in state.get(start, []):
-                    if end < c1 or end > c2:
-                        _c += 1
+                c = ducks[ck]
+                p1 = ducks[p1k]
+                p2 = ducks[p2k]
 
-            if c2 in state.get(c1, []):
-                # check if same thread is cutted
-                _c += 1
+                n1, n2 = hamming_distance(c.dna, p1.dna, p2.dna)
+                if n1 != -1 and n2 != -1:
+                    c.parents.extend([p1, p2])
+                    p1.children.append(c)
+                    p2.children.append(c)
 
-            n_cuts = max(n_cuts, _c)
+    roots = [x for x in ducks if ducks[x].parents == []]
+    trees = [ducks[x].build_tree() for x in roots]
+    trees = sorted(trees, key=lambda x: len(x), reverse=True)
+    tree = trees[0]
+    result = 0
+    for i in tree:
+        result += i
 
-    return str(n_cuts)
+    return str(result)
 
 
 if __name__ == "__main__":
-    quest = 8
+    quest = 9
     event = 2025
     p = 3
     data = get_inputs(quest=quest, event=event)
